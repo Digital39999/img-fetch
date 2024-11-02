@@ -11,12 +11,16 @@ import (
 func handleImageFetch(c *gin.Context) {
 	encryptedURL := c.Query("hash")
 	if encryptedURL == "" {
+		c.Header("X-Error", "Missing hash parameter")
+		c.Header("Content-Type", fallbackContentType)
 		c.Header("Cache-Control", "public, max-age=604800")
 		c.Data(http.StatusOK, fallbackContentType, fallbackImageData)
 		return
 	}
 
 	if cacheItem, found := getCachedImage(encryptedURL); found {
+		c.Header("X-Cache", "Hit")
+		c.Header("Content-Type", cacheItem.ContentType)
 		c.Header("Cache-Control", "public, max-age=604800")
 		c.Data(http.StatusOK, cacheItem.ContentType, cacheItem.ImageData)
 		return
@@ -24,6 +28,8 @@ func handleImageFetch(c *gin.Context) {
 
 	imageURL := decrypt(encryptedURL)
 	if imageURL == "" {
+		c.Header("X-Error", "Invalid hash parameter")
+		c.Header("Content-Type", fallbackContentType)
 		c.Header("Cache-Control", "public, max-age=604800")
 		c.Data(http.StatusOK, fallbackContentType, fallbackImageData)
 		return
@@ -39,6 +45,8 @@ func handleImageFetch(c *gin.Context) {
 		cacheImage(encryptedURL, imageData, contentType)
 	}
 
+	c.Header("X-Cache", "Miss")
+	c.Header("Content-Type", contentType)
 	c.Header("Cache-Control", "public, max-age=604800")
 	c.Data(http.StatusOK, contentType, imageData)
 }
