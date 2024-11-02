@@ -22,8 +22,8 @@ func handleImageFetch(c *gin.Context) {
 		return
 	}
 
-	imageURL, err := decrypt(encryptedURL)
-	if err != nil {
+	imageURL := decrypt(encryptedURL)
+	if imageURL == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"status": http.StatusUnauthorized, "error": "Invalid or corrupted encrypted URL."})
 		return
 	}

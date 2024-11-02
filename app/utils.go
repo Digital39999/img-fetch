@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"runtime"
@@ -96,10 +97,19 @@ func formatBytes(bytes uint64) string {
 	}
 }
 
-func fetchImage(url string) ([]byte, string, error) {
-	url = strings.TrimSpace(url)
+func isValidURL(rawURL string) bool {
+	parsedURL, err := url.ParseRequestURI(rawURL)
+	return err == nil && (parsedURL.Scheme == "http" || parsedURL.Scheme == "https")
+}
 
-	resp, err := http.Get(url)
+func fetchImage(urlStr string) ([]byte, string, error) {
+	urlStr = strings.TrimSpace(urlStr)
+
+	if !isValidURL(urlStr) {
+		return nil, "", fmt.Errorf("invalid URL: %s", urlStr)
+	}
+
+	resp, err := http.Get(urlStr)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("failed to fetch image: %v", err)
 	}
@@ -114,10 +124,14 @@ func fetchImage(url string) ([]byte, string, error) {
 	return imageData, resp.Header.Get("Content-Type"), nil
 }
 
-func decrypt(text string) (string, error) {
+func decrypt(text string) string {
 	encryptedText, err := hex.DecodeString(text)
 	if err != nil {
-		return "", err
+		return ""
+	}
+
+	if len(encryptedText)%aes.BlockSize != 0 {
+		return ""
 	}
 
 	iv := make([]byte, aes.BlockSize)
@@ -125,14 +139,20 @@ func decrypt(text string) (string, error) {
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", err
+		return ""
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
 	decrypted := make([]byte, len(encryptedText))
-	mode.CryptBlocks(decrypted, encryptedText)
 
-	return string(decrypted), nil
+	defer func() {
+		if r := recover(); r != nil {
+			return
+		}
+	}()
+
+	mode.CryptBlocks(decrypted, encryptedText)
+	return string(decrypted)
 }
 
 func validateKey() string {
