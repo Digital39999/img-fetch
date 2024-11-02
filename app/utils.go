@@ -1,15 +1,19 @@
 package main
 
 import (
-	"encoding/base64"
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime"
-	"sync"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -17,12 +21,6 @@ import (
 )
 
 var startTime = time.Now()
-var urlStore = struct {
-	sync.RWMutex
-	store map[string]string
-}{
-	store: make(map[string]string),
-}
 
 func loadEnvVars() (string, error) {
 	_ = godotenv.Load()
@@ -37,7 +35,21 @@ func loadEnvVars() (string, error) {
 		return "", errors.New("missing FALLBACK_IMAGE_URL in environment variables")
 	}
 
+	if os.Getenv("SECRET_KEY") == "" {
+		return "", errors.New("missing SECRET_KEY in environment variables")
+	}
+
+	if os.Getenv("MAX_CACHE_SIZE_MB") == "" {
+		return "", errors.New("missing MAX_CACHE_SIZE_MB in environment variables")
+	}
+
 	return port, nil
+}
+
+func initCacheSettings() {
+	maxSizeStr := os.Getenv("MAX_CACHE_SIZE_MB")
+	maxCacheSizeMB, _ := strconv.Atoi(maxSizeStr)
+	maxCacheSize = maxCacheSizeMB * 1024 * 1024
 }
 
 func getCpuUsage() float64 {
@@ -85,6 +97,8 @@ func formatBytes(bytes uint64) string {
 }
 
 func fetchImage(url string) ([]byte, string, error) {
+	url = strings.TrimSpace(url)
+
 	resp, err := http.Get(url)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("failed to fetch image: %v", err)
@@ -100,10 +114,61 @@ func fetchImage(url string) ([]byte, string, error) {
 	return imageData, resp.Header.Get("Content-Type"), nil
 }
 
-func decodeURL(encodedURL string) (string, error) {
-	data, err := base64.URLEncoding.DecodeString(encodedURL)
+func decrypt(text string) (string, error) {
+	encryptedText, err := hex.DecodeString(text)
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+
+	iv := make([]byte, aes.BlockSize)
+	key := validateKey()
+
+	block, err := aes.NewCipher([]byte(key))
+	if err != nil {
+		return "", err
+	}
+
+	mode := cipher.NewCBCDecrypter(block, iv)
+	decrypted := make([]byte, len(encryptedText))
+	mode.CryptBlocks(decrypted, encryptedText)
+
+	return string(decrypted), nil
+}
+
+func validateKey() string {
+	key := os.Getenv("SECRET_KEY")
+
+	if len(key) < 32 {
+		key += "00000000000000000000000000000000"[:32-len(key)]
+	} else if len(key) > 32 {
+		key = key[:32]
+	}
+
+	return key
+}
+
+func initFallbackImage() error {
+	once.Do(func() {
+		fallbackURL := os.Getenv("FALLBACK_IMAGE_URL")
+		if fallbackURL == "" {
+			fmt.Println("No FALLBACK_IMAGE_URL set.")
+			return
+		}
+
+		data, contentType, err := fetchImage(fallbackURL)
+		if err != nil {
+			fmt.Println("Error fetching fallback image:", err)
+			return
+		}
+
+		fallbackImageData = data
+		fallbackContentType = contentType
+	})
+
+	return nil
+}
+
+func removeControlCharacters(url string) string {
+	re := regexp.MustCompile(`[\x00-\x1F\x7F]`)
+	return re.ReplaceAllString(url, "")
 }

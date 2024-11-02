@@ -18,8 +18,13 @@ func main() {
 		return
 	}
 
-	router := gin.Default()
+	initCacheSettings()
+	if err := initFallbackImage(); err != nil {
+		fmt.Println("Error loading fallback image:", err)
+		return
+	}
 
+	router := gin.Default()
 	initializeRoutes(router)
 
 	fmt.Printf("Starting server on port %s..\n", port)

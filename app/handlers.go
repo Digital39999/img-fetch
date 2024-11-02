@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"os"
 	"runtime"
 	"time"
 
@@ -10,44 +9,35 @@ import (
 )
 
 func handleImageFetch(c *gin.Context) {
-	encodedURL := c.Query("hash")
-	if encodedURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": http.StatusBadRequest, "error": "Missing image hash."})
+	encryptedURL := c.Query("hash")
+	if encryptedURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": http.StatusBadRequest, "error": "Missing encrypted URL."})
 		return
 	}
 
-	urlStore.RLock()
-	imageURL, found := urlStore.store[encodedURL]
-	urlStore.RUnlock()
-
-	if !found {
-		var err error
-		imageURL, err = decodeURL(encodedURL)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"status": http.StatusBadRequest, "error": "Invalid image hash."})
-			return
-		}
-
-		urlStore.Lock()
-		urlStore.store[encodedURL] = imageURL
-		urlStore.Unlock()
+	if cacheItem, found := getCachedImage(encryptedURL); found {
+		c.Header("Cache-Control", "public, max-age=604800")
+		c.Data(http.StatusOK, cacheItem.ContentType, cacheItem.ImageData)
+		return
 	}
 
-	imageData, contentType, err := fetchImage(imageURL)
+	imageURL, err := decrypt(encryptedURL)
 	if err != nil {
-		fallbackURL := os.Getenv("FALLBACK_IMAGE_URL")
-		if fallbackURL == "" {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": http.StatusInternalServerError, "error": "Failed to fetch image."})
-			return
-		}
-
-		imageData, contentType, err = fetchImage(fallbackURL)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": http.StatusInternalServerError, "error": "Failed to fetch fallback image."})
-			return
-		}
+		c.JSON(http.StatusUnauthorized, gin.H{"status": http.StatusUnauthorized, "error": "Invalid or corrupted encrypted URL."})
+		return
 	}
 
+	cleanedURL := removeControlCharacters(imageURL)
+
+	imageData, contentType, err := fetchImage(cleanedURL)
+	if err != nil {
+		imageData = fallbackImageData
+		contentType = fallbackContentType
+	} else {
+		cacheImage(encryptedURL, imageData, contentType)
+	}
+
+	c.Header("Cache-Control", "public, max-age=604800")
 	c.Data(http.StatusOK, contentType, imageData)
 }
 
