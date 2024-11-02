@@ -24,13 +24,14 @@ func handleImageFetch(c *gin.Context) {
 
 	imageURL := decrypt(encryptedURL)
 	if imageURL == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"status": http.StatusUnauthorized, "error": "Invalid or corrupted encrypted URL."})
+		c.Header("Cache-Control", "public, max-age=604800")
+		c.Data(http.StatusOK, fallbackContentType, fallbackImageData)
 		return
 	}
 
 	cleanedURL := removeControlCharacters(imageURL)
-
 	imageData, contentType, err := fetchImage(cleanedURL)
+
 	if err != nil {
 		imageData = fallbackImageData
 		contentType = fallbackContentType
