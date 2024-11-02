@@ -11,7 +11,8 @@ import (
 func handleImageFetch(c *gin.Context) {
 	encryptedURL := c.Query("hash")
 	if encryptedURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": http.StatusBadRequest, "error": "Missing encrypted URL."})
+		c.Header("Cache-Control", "public, max-age=604800")
+		c.Data(http.StatusOK, fallbackContentType, fallbackImageData)
 		return
 	}
 
