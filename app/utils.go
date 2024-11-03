@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"image/color"
 	"io"
 	"math"
 	"net/http"
@@ -191,4 +192,51 @@ func initFallbackImage() error {
 func removeControlCharacters(url string) string {
 	re := regexp.MustCompile(`[\x00-\x1F\x7F]`)
 	return re.ReplaceAllString(url, "")
+}
+
+func parseHexColor(hex string) color.Color {
+	var r, g, b uint8
+	if len(hex) == 7 {
+		_, err := fmt.Sscanf(hex, "#%02X%02X%02X", &r, &g, &b)
+		if err != nil {
+			return nil
+		}
+
+		return color.RGBA{r, g, b, 255}
+	}
+
+	return nil
+}
+
+func contains(sizes []int, size int) bool {
+	for _, s := range sizes {
+		if s == size {
+			return true
+		}
+	}
+
+	return false
+}
+
+func parseRGBColor(rgb string) color.Color {
+	if strings.HasPrefix(rgb, "rgb(") && strings.HasSuffix(rgb, ")") {
+		rgb = rgb[4 : len(rgb)-1]
+
+		parts := strings.Split(rgb, ",")
+		if len(parts) != 3 {
+			return nil
+		}
+
+		r, err1 := strconv.Atoi(strings.TrimSpace(parts[0]))
+		g, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+		b, err3 := strconv.Atoi(strings.TrimSpace(parts[2]))
+
+		if err1 != nil || err2 != nil || err3 != nil || r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255 {
+			return nil
+		}
+
+		return color.RGBA{uint8(r), uint8(g), uint8(b), 255}
+	}
+
+	return nil
 }
