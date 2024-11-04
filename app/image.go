@@ -50,7 +50,6 @@ func handleCard(c *gin.Context, data Data, size int) []byte {
 	tmpl, err := template.New("Generated").Funcs(template.FuncMap{
 		"add":          func(a, b int) int { return a + b },
 		"mul":          func(a, b int) int { return a * b },
-		"len":          func(slice []UserEntry) int { return len(slice) },
 		"calcProgress": func(percentage int) int { return int(math.Round(float64(percentage) * 270 / 100)) },
 		"sliceText": func(text string, length int) string {
 			if len(text) <= length {
