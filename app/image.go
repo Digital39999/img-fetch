@@ -27,8 +27,6 @@ type Data struct {
 	AddOverlay    bool         `json:"addOverlay,omitempty"`
 	OverlayColor  string       `json:"overlayColor,omitempty"`
 	RankInfo      *RankInfo    `json:"rankInfo,omitempty"`
-	SpotifyInfo   *SpotifyInfo `json:"spotifyInfo,omitempty"`
-	Leaderboard   []UserEntry  `json:"leaderboard,omitempty"`
 }
 
 type RankInfo struct {
@@ -38,19 +36,6 @@ type RankInfo struct {
 	RatioPlacement string `json:"ratioPlacement,omitempty"`
 	ProgressColor  string `json:"progressColor,omitempty"`
 	EmptyColor     string `json:"emptyColor,omitempty"`
-}
-
-type SpotifyInfo struct {
-	SongTitle  string `json:"songTitle" validate:"required"`
-	ArtistName string `json:"artistName,omitempty"`
-	AlbumCover string `json:"albumCover,omitempty"`
-}
-
-type UserEntry struct {
-	DisplayName string `json:"displayName" validate:"required"`
-	ImageURL    string `json:"imageUrl" validate:"required"`
-	Rank        int    `json:"rankOrLevel" validate:"required"`
-	XP          int    `json:"xpOrMessages" validate:"required"`
 }
 
 func handleCard(c *gin.Context, data Data, size int) []byte {
